@@ -4,24 +4,44 @@ function validConfig(value) {
   return Array.isArray(value.superUserBots) && Array.isArray(value.departmentBots);
 }
 
-function flattenBots(departmentBots) {
-  const map = new Map();
-  departmentBots.forEach(bot => {
-    map.set(bot.id, { ...bot, kind: 'department', parentId: null });
-    (bot.children || []).forEach(child => {
-      map.set(child.id, { ...child, kind: 'child', parentId: bot.id });
+function buildBotIndex() {
+  const index = new Map();
+
+  (config.superUserBots || []).forEach(bot => {
+    index.set(bot.id, { ...bot, parentId: null, topParentId: null });
+  });
+
+  (config.departmentBots || []).forEach(department => {
+    index.set(department.id, { ...department, parentId: null, topParentId: department.id });
+
+    (department.functionalBots || []).forEach(functional => {
+      index.set(functional.id, {
+        ...functional,
+        parentId: department.id,
+        topParentId: department.id
+      });
+
+      (functional.workflowBots || []).forEach(workflow => {
+        index.set(workflow.id, {
+          ...workflow,
+          parentId: functional.id,
+          topParentId: department.id
+        });
+      });
     });
   });
-  return map;
+
+  return index;
 }
 
-const departmentBotMap = validConfig(config) ? flattenBots(config.departmentBots) : new Map();
+const botIndex = validConfig(config) ? buildBotIndex() : new Map();
 const defaultSuper = validConfig(config) && config.superUserBots.length ? config.superUserBots[0].id : null;
 
 const state = {
   selectedSection: 'super',
   selectedBotId: defaultSuper,
-  expandedDepartmentId: validConfig(config) && config.departmentBots.length ? config.departmentBots[0].id : null
+  expandedDepartmentId: validConfig(config) && config.departmentBots.length ? config.departmentBots[0].id : null,
+  expandedFunctionalId: validConfig(config) && config.departmentBots[0]?.functionalBots?.[0]?.id ? config.departmentBots[0].functionalBots[0].id : null
 };
 
 const els = {
@@ -44,16 +64,30 @@ function plusCard(label, scope, parentId = '') {
   `;
 }
 
+function levelLabel(level) {
+  return {
+    super: 'Super user bot',
+    department: 'Department bot',
+    functional: 'Functional bot',
+    workflow: 'Workflow bot'
+  }[level] || 'Bot';
+}
+
 function findSelectedBot() {
   if (state.selectedSection === 'super') {
     return config.superUserBots.find(bot => bot.id === state.selectedBotId) || null;
   }
-  return departmentBotMap.get(state.selectedBotId) || null;
+  return botIndex.get(state.selectedBotId) || null;
 }
 
 function renderHero() {
   const totalDept = config.departmentBots.length;
-  const totalChildren = config.departmentBots.reduce((acc, bot) => acc + (bot.children?.length || 0), 0);
+  const totalFunctional = config.departmentBots.reduce((acc, bot) => acc + (bot.functionalBots?.length || 0), 0);
+  const totalWorkflow = config.departmentBots.reduce(
+    (acc, bot) => acc + (bot.functionalBots || []).reduce((inner, functional) => inner + (functional.workflowBots?.length || 0), 0),
+    0
+  );
+
   els.hero.innerHTML = `
     <div>
       <div class="eyebrow">Whiteboard rebuild</div>
@@ -63,7 +97,8 @@ function renderHero() {
     <div class="hero-stats">
       <div class="stat-card"><div class="stat-label">Super user bots</div><div class="stat-value">${config.superUserBots.length}</div></div>
       <div class="stat-card"><div class="stat-label">Department bots</div><div class="stat-value">${totalDept}</div></div>
-      <div class="stat-card"><div class="stat-label">Child bots</div><div class="stat-value">${totalChildren}</div></div>
+      <div class="stat-card"><div class="stat-label">Functional bots</div><div class="stat-value">${totalFunctional}</div></div>
+      <div class="stat-card"><div class="stat-label">Workflow bots</div><div class="stat-value">${totalWorkflow}</div></div>
     </div>
   `;
 }
@@ -81,6 +116,43 @@ function superCard(bot) {
   `;
 }
 
+function workflowCard(workflow) {
+  return `
+    <button class="workflow-card ${state.selectedSection === 'department' && state.selectedBotId === workflow.id ? 'active' : ''}" data-bot-id="${workflow.id}" data-section="department">
+      <div class="card-head">
+        <h5>${workflow.name}</h5>
+        ${badge(workflow.status, workflow.status === 'Active' ? 'success' : 'warning')}
+      </div>
+      <p>${workflow.purpose}</p>
+    </button>
+  `;
+}
+
+function functionalCard(functional, departmentId) {
+  const expanded = state.expandedFunctionalId === functional.id;
+  return `
+    <div class="functional-block">
+      <div class="functional-row">
+        <button class="child-card functional-card ${state.selectedSection === 'department' && state.selectedBotId === functional.id ? 'active' : ''}" data-bot-id="${functional.id}" data-section="department">
+          <div class="card-head">
+            <h4>${functional.name}</h4>
+            ${badge(functional.status, functional.status === 'Active' ? 'success' : 'warning')}
+          </div>
+          <p>${functional.purpose}</p>
+          <div class="meta-row">${badge('Owner: ' + functional.owner)} ${badge(`${functional.workflowBots.length} workflow bots`, 'accent')}</div>
+        </button>
+        <button class="expand-toggle small-toggle" data-expand-functional-id="${functional.id}">${expanded ? 'Hide workflows' : 'Show workflows'}</button>
+      </div>
+      ${expanded ? `
+        <div class="workflow-lane">
+          ${(functional.workflowBots || []).map(workflowCard).join('')}
+          ${plusCard('Add workflow bot', 'workflow', functional.id)}
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
+
 function departmentCard(bot) {
   const expanded = state.expandedDepartmentId === bot.id;
   return `
@@ -92,22 +164,14 @@ function departmentCard(bot) {
             ${badge(bot.status, bot.status === 'Active' ? 'success' : 'warning')}
           </div>
           <p>${bot.purpose}</p>
-          <div class="meta-row">${badge('Owner: ' + bot.owner)} ${badge(`${bot.children.length} child bots`, 'accent')}</div>
+          <div class="meta-row">${badge('Owner: ' + bot.owner)} ${badge(`${bot.functionalBots.length} functional bots`, 'accent')}</div>
         </button>
-        <button class="expand-toggle" data-expand-id="${bot.id}">${expanded ? 'Hide children' : 'Show children'}</button>
+        <button class="expand-toggle" data-expand-id="${bot.id}">${expanded ? 'Hide functions' : 'Show functions'}</button>
       </div>
       ${expanded ? `
         <div class="child-lane">
-          ${(bot.children || []).map(child => `
-            <button class="child-card ${state.selectedSection === 'department' && state.selectedBotId === child.id ? 'active' : ''}" data-bot-id="${child.id}" data-section="department">
-              <div class="card-head">
-                <h4>${child.name}</h4>
-                ${badge(child.status, child.status === 'Active' ? 'success' : 'warning')}
-              </div>
-              <p>${child.purpose}</p>
-            </button>
-          `).join('')}
-          ${plusCard('Add child bot', 'child', bot.id)}
+          ${(bot.functionalBots || []).map(functional => functionalCard(functional, bot.id)).join('')}
+          ${plusCard('Add functional bot', 'functional', bot.id)}
         </div>
       ` : ''}
     </div>
@@ -131,7 +195,7 @@ function renderDepartmentSection() {
   els.departmentSection.innerHTML = `
     <div class="section-header">
       <h2>Department Bot</h2>
-      <p>Department bots are the working layer. Expand a department to manage child bots underneath it.</p>
+      <p>Department bots expand into functional bots, and functional bots expand into single-workflow bots.</p>
     </div>
     <div class="department-stack">
       ${config.departmentBots.map(departmentCard).join('')}
@@ -150,7 +214,7 @@ function renderConfigPanel() {
       <div class="config-head">
         <div class="eyebrow">Bot configuration</div>
         <h2>Create Bot</h2>
-        <p>Select a plus button from the structure to create a new super user bot, department bot, or child bot.</p>
+        <p>Select a plus button from the structure to create a new super, department, functional, or workflow bot.</p>
       </div>
       <div class="config-card">
         <h3>Templates / default settings</h3>
@@ -174,6 +238,13 @@ function renderConfigPanel() {
   const memory = (bot.memory || []).map(item => `<span class="pill">${item}</span>`).join('');
   const permissions = (bot.permissions || []).map(item => `<span class="pill">${item}</span>`).join('');
 
+  let childSummary = '';
+  if (bot.level === 'department') {
+    childSummary = `<div class="kv-row"><span>Functional bots</span><span class="muted">${bot.functionalBots?.length || 0}</span></div>`;
+  } else if (bot.level === 'functional') {
+    childSummary = `<div class="kv-row"><span>Workflow bots</span><span class="muted">${bot.workflowBots?.length || 0}</span></div>`;
+  }
+
   els.config.innerHTML = `
     <div class="config-head">
       <div class="eyebrow">Bot configuration</div>
@@ -183,10 +254,11 @@ function renderConfigPanel() {
 
     <div class="config-card">
       <h3>Basic</h3>
-      <div class="kv-row"><span>Scope</span><span class="muted">${state.selectedSection === 'super' ? 'Super user bot' : bot.kind === 'child' ? 'Child bot' : 'Department bot'}</span></div>
+      <div class="kv-row"><span>Level</span><span class="muted">${levelLabel(bot.level)}</span></div>
       <div class="kv-row"><span>Owner</span><span class="muted">${bot.owner}</span></div>
       <div class="kv-row"><span>Status</span><span class="muted">${bot.status}</span></div>
       <div class="kv-row"><span>Template</span><span class="muted">${bot.template}</span></div>
+      ${childSummary}
     </div>
 
     <div class="config-card">
@@ -233,14 +305,19 @@ function bindInteractions() {
     });
   });
 
+  document.querySelectorAll('[data-expand-functional-id]').forEach(el => {
+    el.addEventListener('click', () => {
+      const id = el.dataset.expandFunctionalId;
+      state.expandedFunctionalId = state.expandedFunctionalId === id ? null : id;
+      render();
+    });
+  });
+
   document.querySelectorAll('[data-add-scope]').forEach(el => {
     el.addEventListener('click', () => {
       const scope = el.dataset.addScope;
       state.selectedSection = scope === 'super' ? 'super' : 'department';
       state.selectedBotId = null;
-      if (scope === 'child') {
-        state.expandedDepartmentId = el.dataset.parentId || state.expandedDepartmentId;
-      }
       render();
     });
   });
