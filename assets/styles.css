@@ -238,6 +238,13 @@ body { min-height: 100vh; }
   align-items: stretch;
 }
 
+.department-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 160px;
+}
+
 .expand-toggle {
   min-width: 128px;
   padding: 12px 14px;

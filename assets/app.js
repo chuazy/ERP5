@@ -166,12 +166,14 @@ function departmentCard(bot) {
           <p>${bot.purpose}</p>
           <div class="meta-row">${badge('Owner: ' + bot.owner)} ${badge(`${bot.functionalBots.length} functional bots`, 'accent')}</div>
         </button>
-        <button class="expand-toggle" data-expand-id="${bot.id}">${expanded ? 'Hide functions' : 'Show functions'}</button>
+        <div class="department-actions">
+          <button class="expand-toggle" data-expand-id="${bot.id}">${expanded ? 'Hide functions' : 'Show functions'}</button>
+          <button class="expand-toggle action-toggle" data-add-scope="functional" data-parent-id="${bot.id}">Add functional bot</button>
+        </div>
       </div>
       ${expanded ? `
         <div class="child-lane">
           ${(bot.functionalBots || []).map(functional => functionalCard(functional, bot.id)).join('')}
-          ${plusCard('Add functional bot', 'functional', bot.id)}
         </div>
       ` : ''}
     </div>
