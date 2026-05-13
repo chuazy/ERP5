@@ -3,34 +3,17 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ERP5 — Enterprise Harness Dashboard</title>
+    <title>ERP5 — Bot Setup</title>
     <link rel="stylesheet" href="assets/styles.css" />
   </head>
   <body>
-    <div class="app-shell">
-      <aside class="sidebar">
-        <div class="brand-block">
-          <div class="eyebrow">ERP5</div>
-          <h1>Enterprise Harness</h1>
-          <p class="muted">Config-driven operating model for org-persistent, permission-governed agents.</p>
-        </div>
+    <div class="simple-app">
+      <header class="topbar" id="topbar"></header>
 
-        <nav class="nav" id="main-nav" aria-label="Primary"></nav>
-
-        <section class="sidebar-panel" id="principles-panel"></section>
-      </aside>
-
-      <main class="main-content">
-        <header class="hero" id="hero"></header>
-
-        <section class="summary-grid" id="summary-grid"></section>
-
-        <section class="tab-strip" id="tab-strip"></section>
-
-        <section class="content-grid">
-          <div class="primary-column" id="primary-column"></div>
-          <div class="secondary-column" id="secondary-column"></div>
-        </section>
+      <main class="workspace">
+        <section class="panel" id="bot-types-panel"></section>
+        <section class="panel" id="org-chart-panel"></section>
+        <section class="panel" id="assignments-panel"></section>
       </main>
     </div>
 
