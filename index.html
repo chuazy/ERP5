@@ -3,17 +3,21 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ERP5 — Bot Setup</title>
+    <title>ERP5 — Bot Structure</title>
     <link rel="stylesheet" href="assets/styles.css" />
   </head>
   <body>
-    <div class="simple-app">
-      <header class="topbar" id="topbar"></header>
+    <div class="page-shell">
+      <header class="hero" id="hero"></header>
 
-      <main class="workspace">
-        <section class="panel" id="bot-types-panel"></section>
-        <section class="panel" id="org-chart-panel"></section>
-        <section class="panel" id="assignments-panel"></section>
+      <main class="layout-grid">
+        <section class="main-stage">
+          <section class="lane-section" id="super-bots-section"></section>
+          <section class="lane-divider"></section>
+          <section class="lane-section" id="department-bots-section"></section>
+        </section>
+
+        <aside class="config-panel" id="config-panel"></aside>
       </main>
     </div>
 

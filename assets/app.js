@@ -1,196 +1,254 @@
 const config = window.ERP5_CONFIG || {};
 
 function validConfig(value) {
-  return Array.isArray(value.botTypes) && Array.isArray(value.orgChart);
+  return Array.isArray(value.superUserBots) && Array.isArray(value.departmentBots);
 }
 
-function flattenOrg(nodes, depth = 1, acc = []) {
-  nodes.forEach(node => {
-    acc.push({ ...node, depth });
-    if (Array.isArray(node.children) && node.children.length > 0) {
-      flattenOrg(node.children, depth + 1, acc);
-    }
+function flattenBots(departmentBots) {
+  const map = new Map();
+  departmentBots.forEach(bot => {
+    map.set(bot.id, { ...bot, kind: 'department', parentId: null });
+    (bot.children || []).forEach(child => {
+      map.set(child.id, { ...child, kind: 'child', parentId: bot.id });
+    });
   });
-  return acc;
+  return map;
 }
 
-const orgNodes = validConfig(config) ? flattenOrg(config.orgChart) : [];
-const defaultBot = validConfig(config) && config.botTypes.length ? config.botTypes[0].name : null;
-const defaultOrg = orgNodes.length ? orgNodes[0].id : null;
+const departmentBotMap = validConfig(config) ? flattenBots(config.departmentBots) : new Map();
+const defaultSuper = validConfig(config) && config.superUserBots.length ? config.superUserBots[0].id : null;
 
 const state = {
-  selectedBot: defaultBot,
-  selectedOrg: defaultOrg
+  selectedSection: 'super',
+  selectedBotId: defaultSuper,
+  expandedDepartmentId: validConfig(config) && config.departmentBots.length ? config.departmentBots[0].id : null
 };
 
 const els = {
-  topbar: document.getElementById('topbar'),
-  botTypes: document.getElementById('bot-types-panel'),
-  orgChart: document.getElementById('org-chart-panel'),
-  assignments: document.getElementById('assignments-panel')
+  hero: document.getElementById('hero'),
+  superSection: document.getElementById('super-bots-section'),
+  departmentSection: document.getElementById('department-bots-section'),
+  config: document.getElementById('config-panel')
 };
 
-function badge(text, tone = 'accent') {
+function badge(text, tone = '') {
   return `<span class="badge ${tone}">${text}</span>`;
 }
 
-function botPill(text) {
-  return `<span class="bot-pill">${text}</span>`;
+function plusCard(label, scope, parentId = '') {
+  return `
+    <button class="bot-card add-card" data-add-scope="${scope}" data-parent-id="${parentId}">
+      <span class="plus-mark">+</span>
+      <span>${label}</span>
+    </button>
+  `;
 }
 
-function findBot(name) {
-  return config.botTypes.find(bot => bot.name === name);
+function findSelectedBot() {
+  if (state.selectedSection === 'super') {
+    return config.superUserBots.find(bot => bot.id === state.selectedBotId) || null;
+  }
+  return departmentBotMap.get(state.selectedBotId) || null;
 }
 
-function findOrg(id) {
-  return orgNodes.find(node => node.id === id);
-}
-
-function renderTopbar() {
-  const botCount = config.botTypes.length;
-  const unitCount = orgNodes.length;
-  const selectedBotAssignment = config.assignments[state.selectedBot] || { users: [] };
-
-  els.topbar.innerHTML = `
+function renderHero() {
+  const totalDept = config.departmentBots.length;
+  const totalChildren = config.departmentBots.reduce((acc, bot) => acc + (bot.children?.length || 0), 0);
+  els.hero.innerHTML = `
     <div>
-      <div class="eyebrow">First-level view</div>
+      <div class="eyebrow">Whiteboard rebuild</div>
       <h1>${config.meta.title}</h1>
       <p>${config.meta.subtitle}</p>
     </div>
-    <div class="kpi-row">
-      <div class="info-card">
-        <div class="info-label">Bot types</div>
-        <div class="info-value">${botCount}</div>
-      </div>
-      <div class="info-card">
-        <div class="info-label">Org units</div>
-        <div class="info-value">${unitCount}</div>
-      </div>
-      <div class="info-card">
-        <div class="info-label">Users on selected bot</div>
-        <div class="info-value">${selectedBotAssignment.users.length}</div>
-      </div>
+    <div class="hero-stats">
+      <div class="stat-card"><div class="stat-label">Super user bots</div><div class="stat-value">${config.superUserBots.length}</div></div>
+      <div class="stat-card"><div class="stat-label">Department bots</div><div class="stat-value">${totalDept}</div></div>
+      <div class="stat-card"><div class="stat-label">Child bots</div><div class="stat-value">${totalChildren}</div></div>
     </div>
   `;
 }
 
-function renderBotTypes() {
-  els.botTypes.innerHTML = `
-    <div class="panel-header">
-      <h2>1. Bot Types</h2>
-      <p>Pick the kind of bot you want to set up first. Keep the first pass broad before splitting into more specialized bots.</p>
-    </div>
-    <div class="stack">
-      ${config.botTypes.map(bot => `
-        <div class="list-item selectable ${state.selectedBot === bot.name ? 'active' : ''}" data-bot="${bot.name}">
-          <div class="title-row">
-            <div>
-              <h3>${bot.name}</h3>
-              <div class="muted small">${bot.purpose}</div>
-            </div>
-            ${badge('Template')}
+function superCard(bot) {
+  return `
+    <button class="bot-card ${state.selectedSection === 'super' && state.selectedBotId === bot.id ? 'active' : ''}" data-bot-id="${bot.id}" data-section="super">
+      <div class="card-head">
+        <h3>${bot.name}</h3>
+        ${badge(bot.status, bot.status === 'Active' ? 'success' : 'warning')}
+      </div>
+      <p>${bot.purpose}</p>
+      <div class="meta-row">${badge('Owner: ' + bot.owner)} ${badge('Template: ' + bot.template, 'accent')}</div>
+    </button>
+  `;
+}
+
+function departmentCard(bot) {
+  const expanded = state.expandedDepartmentId === bot.id;
+  return `
+    <div class="department-block">
+      <div class="department-row">
+        <button class="bot-card ${state.selectedSection === 'department' && state.selectedBotId === bot.id ? 'active' : ''}" data-bot-id="${bot.id}" data-section="department">
+          <div class="card-head">
+            <h3>${bot.name}</h3>
+            ${badge(bot.status, bot.status === 'Active' ? 'success' : 'warning')}
           </div>
-          <div class="badge-row">
-            ${bot.capabilities.map(item => badge(item)).join('')}
-          </div>
-          <div class="subsection-title">Suggested users</div>
-          <div class="user-chip-row">
-            ${bot.defaultUsers.map(user => `<span class="user-chip">${user}</span>`).join('')}
-          </div>
+          <p>${bot.purpose}</p>
+          <div class="meta-row">${badge('Owner: ' + bot.owner)} ${badge(`${bot.children.length} child bots`, 'accent')}</div>
+        </button>
+        <button class="expand-toggle" data-expand-id="${bot.id}">${expanded ? 'Hide children' : 'Show children'}</button>
+      </div>
+      ${expanded ? `
+        <div class="child-lane">
+          ${(bot.children || []).map(child => `
+            <button class="child-card ${state.selectedSection === 'department' && state.selectedBotId === child.id ? 'active' : ''}" data-bot-id="${child.id}" data-section="department">
+              <div class="card-head">
+                <h4>${child.name}</h4>
+                ${badge(child.status, child.status === 'Active' ? 'success' : 'warning')}
+              </div>
+              <p>${child.purpose}</p>
+            </button>
+          `).join('')}
+          ${plusCard('Add child bot', 'child', bot.id)}
         </div>
-      `).join('')}
+      ` : ''}
     </div>
   `;
+}
 
-  els.botTypes.querySelectorAll('[data-bot]').forEach(item => {
-    item.addEventListener('click', () => {
-      state.selectedBot = item.dataset.bot;
+function renderSuperSection() {
+  els.superSection.innerHTML = `
+    <div class="section-header">
+      <h2>Super User Bot</h2>
+      <p>Small set of global bots with enterprise-wide or cross-functional roles.</p>
+    </div>
+    <div class="bot-lane">
+      ${config.superUserBots.map(superCard).join('')}
+      ${plusCard('Add super user bot', 'super')}
+    </div>
+  `;
+}
+
+function renderDepartmentSection() {
+  els.departmentSection.innerHTML = `
+    <div class="section-header">
+      <h2>Department Bot</h2>
+      <p>Department bots are the working layer. Expand a department to manage child bots underneath it.</p>
+    </div>
+    <div class="department-stack">
+      ${config.departmentBots.map(departmentCard).join('')}
+      <div class="bot-lane bottom-lane">${plusCard('Add department bot', 'department')}</div>
+    </div>
+  `;
+}
+
+function renderConfigPanel() {
+  const bot = findSelectedBot();
+  const isAddMode = !bot;
+  const templates = (config.botTemplates || []).map(name => `<span class="pill">${name}</span>`).join('');
+
+  if (isAddMode) {
+    els.config.innerHTML = `
+      <div class="config-head">
+        <div class="eyebrow">Bot configuration</div>
+        <h2>Create Bot</h2>
+        <p>Select a plus button from the structure to create a new super user bot, department bot, or child bot.</p>
+      </div>
+      <div class="config-card">
+        <h3>Templates / default settings</h3>
+        <div class="pill-row">${templates}</div>
+      </div>
+      <div class="config-card">
+        <h3>Configuration flow</h3>
+        <ol class="plain-list numbered">
+          <li>Choose where the bot should live in the structure.</li>
+          <li>Pick a template or start blank.</li>
+          <li>Assign users and roles.</li>
+          <li>Configure skills, memory, and permissions.</li>
+        </ol>
+      </div>
+    `;
+    return;
+  }
+
+  const users = (bot.users || []).map(user => `<div class="kv-row"><span>${user.name}</span><span class="muted">${user.role}</span></div>`).join('');
+  const skills = (bot.skills || []).map(item => `<span class="pill">${item}</span>`).join('');
+  const memory = (bot.memory || []).map(item => `<span class="pill">${item}</span>`).join('');
+  const permissions = (bot.permissions || []).map(item => `<span class="pill">${item}</span>`).join('');
+
+  els.config.innerHTML = `
+    <div class="config-head">
+      <div class="eyebrow">Bot configuration</div>
+      <h2>${bot.name}</h2>
+      <p>${bot.purpose}</p>
+    </div>
+
+    <div class="config-card">
+      <h3>Basic</h3>
+      <div class="kv-row"><span>Scope</span><span class="muted">${state.selectedSection === 'super' ? 'Super user bot' : bot.kind === 'child' ? 'Child bot' : 'Department bot'}</span></div>
+      <div class="kv-row"><span>Owner</span><span class="muted">${bot.owner}</span></div>
+      <div class="kv-row"><span>Status</span><span class="muted">${bot.status}</span></div>
+      <div class="kv-row"><span>Template</span><span class="muted">${bot.template}</span></div>
+    </div>
+
+    <div class="config-card">
+      <h3>Users & roles</h3>
+      ${users}
+    </div>
+
+    <div class="config-card">
+      <h3>Skills</h3>
+      <div class="pill-row">${skills || '<span class="muted">No skills selected</span>'}</div>
+    </div>
+
+    <div class="config-card">
+      <h3>Memory</h3>
+      <div class="pill-row">${memory || '<span class="muted">No memory sources selected</span>'}</div>
+    </div>
+
+    <div class="config-card">
+      <h3>Permissions</h3>
+      <div class="pill-row">${permissions || '<span class="muted">No permissions selected</span>'}</div>
+    </div>
+
+    <div class="config-card">
+      <h3>Templates</h3>
+      <div class="pill-row">${templates}</div>
+    </div>
+  `;
+}
+
+function bindInteractions() {
+  document.querySelectorAll('[data-bot-id]').forEach(el => {
+    el.addEventListener('click', () => {
+      state.selectedBotId = el.dataset.botId;
+      state.selectedSection = el.dataset.section;
       render();
     });
   });
-}
 
-function renderOrgChart() {
-  els.orgChart.innerHTML = `
-    <div class="panel-header">
-      <h2>2. Org Chart</h2>
-      <p>See where bots sit in the company. Start with departments and teams; you can add more detail later.</p>
-    </div>
-    <div class="org-tree">
-      ${orgNodes.map(node => `
-        <div class="org-node org-depth-${Math.min(node.depth, 4)} selectable ${state.selectedOrg === node.id ? 'active' : ''}" data-org="${node.id}">
-          <div class="title-row">
-            <div>
-              <h3>${node.name}</h3>
-              <div class="muted small">${node.type}</div>
-            </div>
-            ${badge(node.type, 'success')}
-          </div>
-          <div class="mini-row">
-            ${node.bots.map(botPill).join('')}
-          </div>
-        </div>
-      `).join('')}
-    </div>
-  `;
-
-  els.orgChart.querySelectorAll('[data-org]').forEach(item => {
-    item.addEventListener('click', () => {
-      state.selectedOrg = item.dataset.org;
+  document.querySelectorAll('[data-expand-id]').forEach(el => {
+    el.addEventListener('click', () => {
+      const id = el.dataset.expandId;
+      state.expandedDepartmentId = state.expandedDepartmentId === id ? null : id;
       render();
     });
   });
-}
 
-function renderAssignments() {
-  const bot = findBot(state.selectedBot);
-  const org = findOrg(state.selectedOrg);
-  const assignment = config.assignments[state.selectedBot] || { owner: 'Unassigned', users: [], notes: 'No notes yet.', orgUnit: 'Not assigned' };
-
-  const orgRelevant = org && org.bots.includes(state.selectedBot);
-
-  els.assignments.innerHTML = `
-    <div class="panel-header">
-      <h2>3. User Assignments</h2>
-      <p>See who owns the selected bot and which users are attached to it. This is the simplest operating view.</p>
-    </div>
-
-    <div class="assignment-grid">
-      <div class="assignment-card">
-        <h3>${bot ? bot.name : 'No bot selected'}</h3>
-        <div class="kv"><span class="muted">Assigned org unit</span><span>${assignment.orgUnit}</span></div>
-        <div class="kv"><span class="muted">Owner</span><span>${assignment.owner}</span></div>
-        <div class="kv"><span class="muted">Selected org node</span><span>${org ? org.name : 'None'}</span></div>
-        <div class="kv"><span class="muted">Status</span><span>${orgRelevant ? 'Fits selected org node' : 'Selected bot sits elsewhere'}</span></div>
-      </div>
-
-      <div class="assignment-card">
-        <h4>Assigned users</h4>
-        <div class="user-chip-row">
-          ${assignment.users.length ? assignment.users.map(user => `<span class="user-chip">${user}</span>`).join('') : '<span class="muted">No users assigned</span>'}
-        </div>
-      </div>
-
-      <div class="assignment-card">
-        <h4>Why this bot exists</h4>
-        <div class="muted">${bot ? bot.purpose : 'Select a bot type.'}</div>
-        <div class="subsection-title">Notes</div>
-        <div class="muted">${assignment.notes}</div>
-      </div>
-    </div>
-
-    <div class="helper-note">
-      <strong>Recommended next step:</strong> once this simple setup view feels right, then we can add edit actions like <em>Create bot</em>, <em>Assign user</em>, and <em>Move bot to org unit</em> without bringing back the heavy architecture complexity.
-    </div>
-  `;
+  document.querySelectorAll('[data-add-scope]').forEach(el => {
+    el.addEventListener('click', () => {
+      const scope = el.dataset.addScope;
+      state.selectedSection = scope === 'super' ? 'super' : 'department';
+      state.selectedBotId = null;
+      if (scope === 'child') {
+        state.expandedDepartmentId = el.dataset.parentId || state.expandedDepartmentId;
+      }
+      render();
+    });
+  });
 }
 
 function renderError() {
   document.title = 'ERP5 — Config Error';
-  els.topbar.innerHTML = `<div class="empty-state">ERP5 configuration is missing or malformed.</div>`;
-  els.botTypes.innerHTML = '';
-  els.orgChart.innerHTML = '';
-  els.assignments.innerHTML = '';
+  document.body.innerHTML = '<div style="padding:24px;color:white">ERP5 configuration is missing or malformed.</div>';
 }
 
 function render() {
@@ -198,12 +256,12 @@ function render() {
     renderError();
     return;
   }
-
   document.title = config.meta.title;
-  renderTopbar();
-  renderBotTypes();
-  renderOrgChart();
-  renderAssignments();
+  renderHero();
+  renderSuperSection();
+  renderDepartmentSection();
+  renderConfigPanel();
+  bindInteractions();
 }
 
 render();

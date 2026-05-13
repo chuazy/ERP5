@@ -1,138 +1,148 @@
 window.ERP5_CONFIG = {
   meta: {
-    title: "ERP5 Bot Setup",
-    subtitle: "Start simple: define bot types, place bots in the org chart, and assign people to each bot.",
-    company: "CARRO-style enterprise harness"
+    title: "ERP5 Bot Structure",
+    subtitle: "Start from structure: super user bots on top, department bots below, then configure the selected bot with templates, users, skills, memory, and permissions.",
+    company: "Enterprise Bot Workspace"
   },
-  botTypes: [
+  superUserBots: [
     {
-      id: "finance-ops",
-      name: "Finance Bot",
-      purpose: "Handles finance workflows like reconciliation, close support, and invoice checks.",
-      defaultUsers: ["Finance manager", "Ops analyst"],
-      capabilities: ["reconciliation", "variance review", "report prep"]
+      id: "exec-orchestrator",
+      name: "Executive Orchestrator",
+      owner: "Zee",
+      status: "Active",
+      template: "Executive Coordination",
+      purpose: "Cross-functional summaries, follow-up tracking, and escalation routing.",
+      users: [
+        { name: "Zee", role: "Owner" },
+        { name: "Chief of Staff", role: "Admin" },
+        { name: "Strategy Lead", role: "Member" }
+      ],
+      skills: ["briefing", "follow-up routing", "cross-team synthesis"],
+      memory: ["leadership notes", "company priorities"],
+      permissions: ["cross-functional visibility", "summary generation"]
     },
     {
-      id: "support-ops",
-      name: "Support Bot",
-      purpose: "Supports ticket triage, escalation routing, and response drafting.",
-      defaultUsers: ["Support lead", "QA reviewer"],
-      capabilities: ["triage", "routing", "knowledge suggestions"]
-    },
-    {
-      id: "eng-ops",
-      name: "Engineering Bot",
-      purpose: "Helps planning, implementation, review coordination, and incident support.",
-      defaultUsers: ["Engineering manager", "Tech lead"],
-      capabilities: ["planning", "build support", "review assistance"]
-    },
-    {
-      id: "hr-ops",
-      name: "HR Bot",
-      purpose: "Assists onboarding, policy lookup, and people operations workflows.",
-      defaultUsers: ["HRBP", "People ops specialist"],
-      capabilities: ["onboarding", "policy Q&A", "workflow tracking"]
-    },
-    {
-      id: "exec-assist",
-      name: "Executive Assistant Bot",
-      purpose: "Supports cross-functional coordination, summaries, and follow-up tracking.",
-      defaultUsers: ["Chief of staff", "Executive office"],
-      capabilities: ["briefing", "follow-ups", "cross-team coordination"]
+      id: "platform-admin",
+      name: "Platform Admin Bot",
+      owner: "Platform Team",
+      status: "Draft",
+      template: "Platform Operations",
+      purpose: "Oversees shared automation, guardrails, and common bot defaults.",
+      users: [
+        { name: "Platform Lead", role: "Owner" },
+        { name: "Security Admin", role: "Reviewer" }
+      ],
+      skills: ["policy checks", "health review"],
+      memory: ["platform runbooks"],
+      permissions: ["admin configuration", "shared settings"]
     }
   ],
-  orgChart: [
+  departmentBots: [
     {
-      id: "company",
-      name: "Enterprise",
-      type: "Company",
-      bots: ["Executive Assistant Bot"],
+      id: "finance-bot",
+      name: "Finance Bot",
+      owner: "Finance Director",
+      status: "Active",
+      template: "Finance Operations",
+      purpose: "Department-level bot for finance operations and reporting workflows.",
+      users: [
+        { name: "Finance Director", role: "Owner" },
+        { name: "Controller", role: "Admin" },
+        { name: "Ops Analyst", role: "Member" }
+      ],
+      skills: ["report prep", "variance review"],
+      memory: ["monthly close notes", "control checklist"],
+      permissions: ["finance data read", "propose actions"],
       children: [
         {
-          id: "finance",
-          name: "Finance",
-          type: "Department",
-          bots: ["Finance Bot"],
-          children: [
-            {
-              id: "r2r",
-              name: "Record-to-Report",
-              type: "Team",
-              bots: ["Finance Bot"],
-              children: []
-            }
-          ]
+          id: "reconciliation-bot",
+          name: "Reconciliation Bot",
+          owner: "Controller",
+          status: "Active",
+          template: "Reconciliation Template",
+          purpose: "Handles bank and account reconciliation workflows.",
+          users: [
+            { name: "Controller", role: "Owner" },
+            { name: "Finance Manager", role: "Reviewer" }
+          ],
+          skills: ["matching", "exception flagging"],
+          memory: ["recon exceptions"],
+          permissions: ["statement read", "match proposal"]
         },
         {
-          id: "support",
-          name: "Support",
-          type: "Department",
-          bots: ["Support Bot"],
-          children: [
-            {
-              id: "escalations",
-              name: "Escalations",
-              type: "Team",
-              bots: ["Support Bot"],
-              children: []
-            }
-          ]
-        },
-        {
-          id: "engineering",
-          name: "Engineering",
-          type: "Department",
-          bots: ["Engineering Bot"],
-          children: [
-            {
-              id: "platform",
-              name: "Platform",
-              type: "Team",
-              bots: ["Engineering Bot"],
-              children: []
-            }
-          ]
-        },
-        {
-          id: "people",
-          name: "People & HR",
-          type: "Department",
-          bots: ["HR Bot"],
-          children: []
+          id: "reporting-bot",
+          name: "Reporting Bot",
+          owner: "Finance Manager",
+          status: "Draft",
+          template: "Reporting Template",
+          purpose: "Supports monthly and board reporting preparation.",
+          users: [
+            { name: "Finance Manager", role: "Owner" },
+            { name: "FP&A Lead", role: "Member" }
+          ],
+          skills: ["summary drafting", "variance commentary"],
+          memory: ["board pack history"],
+          permissions: ["report draft"]
         }
       ]
+    },
+    {
+      id: "support-bot",
+      name: "Support Bot",
+      owner: "Head of Support",
+      status: "Active",
+      template: "Support Operations",
+      purpose: "Department-level bot for customer support workflows.",
+      users: [
+        { name: "Head of Support", role: "Owner" },
+        { name: "Escalation Manager", role: "Admin" }
+      ],
+      skills: ["triage", "routing"],
+      memory: ["incident patterns", "kb guidance"],
+      permissions: ["ticket read", "queue assignment"],
+      children: [
+        {
+          id: "escalation-bot",
+          name: "Escalation Bot",
+          owner: "Escalation Manager",
+          status: "Active",
+          template: "Escalation Template",
+          purpose: "Handles priority escalation workflows and internal handoffs.",
+          users: [
+            { name: "Escalation Manager", role: "Owner" },
+            { name: "QA Reviewer", role: "Reviewer" }
+          ],
+          skills: ["priority tagging", "handoff summaries"],
+          memory: ["escalation playbook"],
+          permissions: ["priority adjust", "summary send"]
+        }
+      ]
+    },
+    {
+      id: "engineering-bot",
+      name: "Engineering Bot",
+      owner: "VP Engineering",
+      status: "Draft",
+      template: "Engineering Operations",
+      purpose: "Department-level bot for planning, execution, and review support.",
+      users: [
+        { name: "VP Engineering", role: "Owner" },
+        { name: "Tech Lead", role: "Admin" }
+      ],
+      skills: ["planning", "review coordination"],
+      memory: ["architecture notes"],
+      permissions: ["repo read", "task creation"],
+      children: []
     }
   ],
-  assignments: {
-    "Executive Assistant Bot": {
-      owner: "Zee",
-      orgUnit: "Enterprise",
-      users: ["Chief of staff", "Strategy lead", "Executive office coordinator"],
-      notes: "Good for company-level summaries and cross-functional follow-up."
-    },
-    "Finance Bot": {
-      owner: "Finance director",
-      orgUnit: "Finance / Record-to-Report",
-      users: ["Finance manager", "Controller", "Ops analyst"],
-      notes: "Anchor bot for finance workflows before splitting into more specialized bots."
-    },
-    "Support Bot": {
-      owner: "Head of support",
-      orgUnit: "Support / Escalations",
-      users: ["Support lead", "Escalation manager", "QA reviewer"],
-      notes: "Useful for triage and consistent handoff rules."
-    },
-    "Engineering Bot": {
-      owner: "VP Engineering",
-      orgUnit: "Engineering / Platform",
-      users: ["Engineering manager", "Tech lead", "Developer productivity lead"],
-      notes: "Start broad, then split into planner / builder / reviewer later if needed."
-    },
-    "HR Bot": {
-      owner: "Head of people",
-      orgUnit: "People & HR",
-      users: ["HRBP", "People ops specialist"],
-      notes: "Useful for repeatable internal workflows and policy support."
-    }
-  }
+  botTemplates: [
+    "Blank Bot",
+    "Executive Coordination",
+    "Finance Operations",
+    "Support Operations",
+    "Engineering Operations",
+    "Reconciliation Template",
+    "Reporting Template",
+    "Escalation Template"
+  ]
 };
